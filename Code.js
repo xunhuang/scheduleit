@@ -1,5 +1,6 @@
 const labelName = "ScheduleIt"; // Variable for the label name
 const labelNameDone = "ScheduleIt_done"; // Variable for the label name
+const labelNameError = "ScheduleIt_error"; // Variable for the label name
 const defaultCalendarName = "ScheduleIt"; // Replace this with the name of your calendar
 const scriptProperties = PropertiesService.getScriptProperties();
 const openaiApiKey = scriptProperties.getProperty("OPENAI_KEY");
@@ -9,13 +10,11 @@ const SKIP_TAG_DONE_LABEL = true; // Set this to true for test mode, false for p
 function getDateDaysAgo(days) {
   const dateDaysAgo = new Date();
   dateDaysAgo.setDate(dateDaysAgo.getDate() - days);
-  return (
-    (dateDaysAgo.getMonth() + 1).toString().padStart(2, "0") +
-    "/" +
-    dateDaysAgo.getDate().toString().padStart(2, "0") +
-    "/" +
-    dateDaysAgo.getFullYear()
-  );
+  return dateDaysAgo.toLocaleDateString("en-US", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  });
 }
 
 function createCalendarEventFromEmail() {
@@ -86,35 +85,50 @@ async function processMessage(message, calendar, queryId, prefix) {
   const content = message.getPlainBody();
   const emailUrl = `https://mail.google.com/mail/u/0/#inbox/${message.getId()}`;
 
-  const events = await extractEventsUsingChatGPT(content, emailUrl);
+  try {
+    const events = await extractEventsUsingChatGPT(content, emailUrl);
 
-  events.forEach((event) => {
-    const { eventName, startTime, endTime } = event;
-    if (!TEST_MODE) {
-      calendar.createEvent(
-        prefix + eventName,
-        new Date(startTime),
-        new Date(endTime),
-        {
-          description: `Extracted from email: ${emailUrl} \n ${content}`,
-        }
+    events.forEach((event) => {
+      const { eventName, startTime, endTime } = event;
+      if (!TEST_MODE) {
+        calendar.createEvent(
+          prefix + eventName,
+          new Date(startTime),
+          new Date(endTime),
+          {
+            description: `Extracted from email: ${emailUrl} \n ${content}`,
+          }
+        );
+      }
+      Logger.log(
+        `Calendar event created: ${prefix}${eventName} from ${startTime} to ${endTime}`
       );
-    }
-    Logger.log(
-      `Calendar event created: ${prefix}${eventName} from ${startTime} to ${endTime}`
-    );
-  });
+    });
+  } catch (e) {
+    Logger.log("Error processing message: " + e);
+    Logger.log("Errant message url: " + messageURL);
+    applyLabelToMessage(message, labelNameError);
+    removeLabelToMessage(message, labelNameDone);
+  }
 
   if (!SKIP_TAG_DONE_LABEL) {
     // Retrieve or create the "done" label
-    const doneLabel =
-      GmailApp.getUserLabelByName(labelNameDone) ||
-      GmailApp.createLabel(labelNameDone);
-
-    // Apply the "done" label to the thread containing the message
-    const thread = message.getThread();
-    thread.addLabel(doneLabel);
+    applyLabelToMessage(message, labelNameDone);
   }
+}
+
+function applyLabelToMessage(message, label) {
+  const doneLabel =
+    GmailApp.getUserLabelByName(label) || GmailApp.createLabel(label);
+  const thread = message.getThread();
+  thread.addLabel(doneLabel);
+}
+
+function removeLabelToMessage(message, label) {
+  const doneLabel =
+    GmailApp.getUserLabelByName(label) || GmailApp.createLabel(label);
+  const thread = message.getThread();
+  thread.removeLabel(doneLabel);
 }
 
 // Function to call OpenAI's ChatGPT to extract event details
@@ -131,41 +145,40 @@ Use startTime, endTime, eventName as fields name for the JSON.
 
 If no events are found, return an empty JSON array.
 `;
-  try {
-    const response = UrlFetchApp.fetch(
-      "https://api.openai.com/v1/chat/completions",
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${openaiApiKey}`,
-          "Content-Type": "application/json",
-        },
-        payload: JSON.stringify({
-          model: "gpt-4",
-          messages: [
-            {
-              role: "system",
-              content: systemMessage,
-            },
-            { role: "user", content: contentWithoutUrls },
-          ],
-        }),
-      }
-    );
+  const response = UrlFetchApp.fetch(
+    "https://api.openai.com/v1/chat/completions",
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${openaiApiKey}`,
+        "Content-Type": "application/json",
+      },
+      payload: JSON.stringify({
+        model: "gpt-4",
+        messages: [
+          {
+            role: "system",
+            content: systemMessage,
+          },
+          { role: "user", content: contentWithoutUrls },
+        ],
+      }),
+    }
+  );
 
-    const text = response.getContentText();
-    const data = JSON.parse(text);
-    const events = parseEventsFromResponse(data.choices[0].message.content);
-    return events;
-  } catch (e) {
-    Logger.log(e);
-    Logger.log("Errant message url: " + messageURL);
-  }
-  return [];
+  const text = response.getContentText();
+  const data = JSON.parse(text);
+  const events = parseEventsFromResponse(data.choices[0].message.content);
+  return events;
 }
 
 // Dummy function to parse events from ChatGPT response
 function parseEventsFromResponse(response) {
   Logger.log(response);
-  return JSON.parse(response);
+  try {
+    return JSON.parse(response);
+  } catch (e) {
+    Logger.log("Error parsing response (JSON expectecd): " + e);
+    return [];
+  }
 }
