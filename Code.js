@@ -90,15 +90,46 @@ async function processMessage(message, calendar, queryId, prefix) {
 
     events.forEach((event) => {
       const { eventName, startTime, endTime } = event;
-      if (!TEST_MODE) {
-        calendar.createEvent(
-          prefix + eventName,
-          new Date(startTime),
-          new Date(endTime),
-          {
-            description: `Extracted from email: ${emailUrl} \n ${content}`,
-          }
+      const startDate = new Date(startTime);
+      const endDate = new Date(endTime);
+
+      // Check if the event is an all-day event
+      const durationHours =
+        (endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60);
+      const allDay = durationHours >= 20;
+
+      // Check for duplicate events
+      const existingEvents = calendar.getEvents(startDate, endDate);
+
+      Logger.log("checking for dup: " + prefix + eventName);
+      const duplicateEvent = existingEvents.find((existingEvent) => {
+        Logger.log(existingEvent.getTitle());
+        const similarity = jaroWinkler(
+          existingEvent.getTitle(),
+          prefix + eventName
         );
+        return (
+          similarity > 0.8 && // Adjust this threshold as needed
+          existingEvent.getStartTime().getTime() === startDate.getTime()
+        );
+      });
+
+      if (duplicateEvent) {
+        Logger.log(`Duplicate event found: ${prefix}${eventName}`);
+        return; // Skip this iteration
+      }
+      if (!TEST_MODE) {
+        if (allDay) {
+          // Create all-day event
+          calendar.createAllDayEvent(prefix + eventName, startDate, {
+            description: `Extracted from email: ${emailUrl} \n ${content}`,
+          });
+        } else {
+          // Create event with specific start and end times
+          calendar.createEvent(prefix + eventName, startDate, endDate, {
+            description: `Extracted from email: ${emailUrl} \n ${content}`,
+          });
+        }
       }
       Logger.log(
         `Calendar event created: ${prefix}${eventName} from ${startTime} to ${endTime}`
@@ -174,11 +205,79 @@ If no events are found, return an empty JSON array.
 
 // Dummy function to parse events from ChatGPT response
 function parseEventsFromResponse(response) {
-  Logger.log(response);
+  // Logger.log(response);
   try {
     return JSON.parse(response);
   } catch (e) {
     Logger.log("Error parsing response (JSON expectecd): " + e);
     return [];
   }
+}
+
+function jaroWinkler(s1, s2) {
+  var m = 0;
+
+  // Exit early if either are empty.
+  if (s1.length === 0 || s2.length === 0) {
+    return 0;
+  }
+
+  // Exit early if they're an exact match.
+  if (s1 === s2) {
+    return 1;
+  }
+
+  var range = Math.floor(Math.max(s1.length, s2.length) / 2) - 1,
+    s1Matches = new Array(s1.length),
+    s2Matches = new Array(s2.length);
+
+  for (i = 0; i < s1.length; i++) {
+    var low = i >= range ? i - range : 0,
+      high = i + range <= s2.length - 1 ? i + range : s2.length - 1;
+
+    for (j = low; j <= high; j++) {
+      if (s1Matches[i] !== true && s2Matches[j] !== true && s1[i] === s2[j]) {
+        ++m;
+        s1Matches[i] = s2Matches[j] = true;
+        break;
+      }
+    }
+  }
+
+  // If no matches were found, then we have a Jaro distance of 0.
+  if (m === 0) {
+    return 0;
+  }
+
+  // Count the transpositions.
+  var k = (n_trans = 0);
+
+  for (i = 0; i < s1.length; i++) {
+    if (s1Matches[i] === true) {
+      for (j = k; j < s2.length; j++) {
+        if (s2Matches[j] === true) {
+          k = j + 1;
+          break;
+        }
+      }
+
+      if (s1[i] !== s2[j]) {
+        ++n_trans;
+      }
+    }
+  }
+
+  var weight = (m / s1.length + m / s2.length + (m - n_trans / 2) / m) / 3,
+    l = 0,
+    p = 0.1;
+
+  if (weight > 0.7) {
+    while (s1[l] === s2[l] && l < 4) {
+      ++l;
+    }
+
+    weight = weight + l * p * (1 - weight);
+  }
+
+  return weight;
 }
