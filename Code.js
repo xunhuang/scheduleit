@@ -4,8 +4,8 @@ const labelNameError = "ScheduleIt_error"; // Variable for the label name
 const defaultCalendarName = "ScheduleIt"; // Replace this with the name of your calendar
 const scriptProperties = PropertiesService.getScriptProperties();
 const openaiApiKey = scriptProperties.getProperty("OPENAI_KEY");
-const TEST_MODE = false; // Set this to true for test mode, false for production
-const SKIP_TAG_DONE_LABEL = true; // Set this to true for test mode, false for production
+const TEST_MODE = false;
+const SKIP_TAG_DONE_LABEL = false;
 
 function getDateDaysAgo(days) {
   const dateDaysAgo = new Date();
@@ -18,27 +18,24 @@ function getDateDaysAgo(days) {
 }
 
 function createCalendarEventFromEmail() {
-  const threeDaysAgo = getDateDaysAgo(30);
+  const threeDaysAgo = getDateDaysAgo(3);
 
   Logger.log("Date three days ago: " + threeDaysAgo);
   const queries = [
-    {
-      id: "query1",
-      query: `label:${labelName} -label:${labelNameDone}`,
-      prefix: "[HRS] ",
-      calendar: "Head Royce School",
-    },
     // {
-    //   id: "query2",
+    //   query: `label:${labelName} -label:${labelNameDone}`,
+    //   prefix: "[HRS] ",
+    //   calendar: "Head Royce School",
+    // },
+    // {
     //   query: `{list:alamedatroop7@googlegroups.com list:alamedatroop2@googlegroups.com} after:${threeDaysAgo} -label:${labelNameDone}`,
     //   prefix: "[BSA]",
     // },
-    // {
-    //   id: "query2",
-    //   query: `{from:headroyce.org} after:${threeDaysAgo} -label:${labelNameDone}`,
-    //   prefix: "[HRS]",
-    //   calendar: "Head Royce School",
-    // },
+    {
+      query: `{from:headroyce.org} after:${threeDaysAgo} -label:${labelNameDone}`,
+      prefix: "[HRS]",
+      calendar: "Head Royce School",
+    },
   ];
   const defaultCalendar =
     CalendarApp.getCalendarsByName(defaultCalendarName)[0];
@@ -57,7 +54,6 @@ function createCalendarEventFromEmail() {
       const message = messages[0];
       allMessages.push({
         message: message,
-        queryId: queryObject.id,
         prefix: queryObject.prefix,
         calendar: queryObject.calendar, // Add the calendar field from the query object
       });
@@ -65,21 +61,33 @@ function createCalendarEventFromEmail() {
   });
 
   allMessages.forEach((entry) => {
-    // Determine the calendar to use: specific calendar from the query or the default one
     const calendarToUse = entry.calendar
       ? CalendarApp.getCalendarsByName(entry.calendar)[0]
       : defaultCalendar;
+
     if (!calendarToUse) {
-      Logger.log("No calendar found with the name: " + entry.calendar);
-      return;
+      if (entry.calendar) {
+        Logger.log(
+          "No calendar found with the name: " +
+            entry.calendar +
+            ". Creating it."
+        );
+        const newCalendar = CalendarApp.createCalendar(entry.calendar);
+        processMessage(entry.message, newCalendar, entry.prefix);
+      } else {
+        Logger.log(
+          "No default calendar found with the name: " + defaultCalendarName
+        );
+        return;
+      }
     } else {
       Logger.log("Using Calendar with the name: " + calendarToUse.getName());
+      processMessage(entry.message, calendarToUse, entry.prefix);
     }
-    processMessage(entry.message, calendarToUse, entry.queryId, entry.prefix); // Pass the determined calendar to processMessage
   });
 }
 
-async function processMessage(message, calendar, queryId, prefix) {
+async function processMessage(message, calendar, prefix) {
   Logger.log(message.getSubject());
   const subject = message.getSubject();
   const content = message.getPlainBody();
