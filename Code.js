@@ -18,23 +18,34 @@ function getDateDaysAgo(days) {
 }
 
 function createCalendarEventFromEmail() {
-  const threeDaysAgo = getDateDaysAgo(3);
+  const lookbackPeriod = getDateDaysAgo(35);
 
-  Logger.log("Date three days ago: " + threeDaysAgo);
+  Logger.log("Reading Messages Since " + lookbackPeriod);
   const queries = [
-    // {
-    //   query: `label:${labelName} -label:${labelNameDone}`,
-    //   prefix: "[HRS] ",
-    //   calendar: "Head Royce School",
-    // },
-    // {
-    //   query: `{list:alamedatroop7@googlegroups.com list:alamedatroop2@googlegroups.com} after:${threeDaysAgo} -label:${labelNameDone}`,
-    //   prefix: "[BSA]",
-    // },
     {
-      query: `{from:headroyce.org} after:${threeDaysAgo} -label:${labelNameDone}`,
+      query: `{from:scouting.org from:mailsrv@troopkit.com list:alamedatroop7@googlegroups.com list:alamedatroop2@googlegroups.com} after:${lookbackPeriod} -label:${labelNameDone}`,
+      prefix: "[BSA]",
+      calendar: "Scouting",
+    },
+    {
+      query: `{from:headroyce.org} after:${lookbackPeriod} -label:${labelNameDone}`,
       prefix: "[HRS]",
       calendar: "Head Royce School",
+    },
+    {
+      query: `"Encinal Jr-Sr High School" after:${lookbackPeriod} -label:${labelNameDone}`,
+      prefix: "[Encinal]",
+      calendar: "Encinal",
+    },
+    {
+      query: `Subject:BMC after:${lookbackPeriod} -label:${labelNameDone}`,
+      prefix: "[BMC]",
+      calendar: "BMC",
+    },
+    {
+      query: `label:${labelName} -label:${labelNameDone}`,
+      prefix: "[Manual] ",
+      calendar: "Catch-all",
     },
   ];
   const defaultCalendar =
@@ -47,6 +58,7 @@ function createCalendarEventFromEmail() {
   }
 
   const allMessages = [];
+
   queries.forEach((queryObject) => {
     const threads = GmailApp.search(queryObject.query);
     threads.forEach((thread) => {
@@ -60,7 +72,15 @@ function createCalendarEventFromEmail() {
     });
   });
 
+  const processedMessageIds = new Set(); // Initialize set for processed message IDs
   allMessages.forEach((entry) => {
+    if (processedMessageIds.has(entry.message.getId())) {
+      Logger.log("Message already processed: " + entry.message.getId());
+      return; // Skip processing if message already processed
+    }
+
+    processedMessageIds.add(entry.message.getId()); // Add message ID to set
+
     const calendarToUse = entry.calendar
       ? CalendarApp.getCalendarsByName(entry.calendar)[0]
       : defaultCalendar;
@@ -69,8 +89,8 @@ function createCalendarEventFromEmail() {
       if (entry.calendar) {
         Logger.log(
           "No calendar found with the name: " +
-            entry.calendar +
-            ". Creating it."
+          entry.calendar +
+          ". Creating it."
         );
         const newCalendar = CalendarApp.createCalendar(entry.calendar);
         processMessage(entry.message, newCalendar, entry.prefix);
