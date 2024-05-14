@@ -22,7 +22,7 @@ function createCalendarEventFromEmail() {
   const lookbackPeriod = getDateDaysAgo(35);
 
   Logger.log("Reading Messages Since " + lookbackPeriod);
-  const queries = [
+  var queries = [
     {
       query: `{from:scouting.org from:mailsrv@troopkit.com list:alamedatroop7@googlegroups.com list:alamedatroop2@googlegroups.com} after:${lookbackPeriod} -label:${labelNameDone}`,
       prefix: "[BSA]",
@@ -47,6 +47,11 @@ function createCalendarEventFromEmail() {
       query: `label:${labelName} -label:${labelNameDone}`,
     },
   ];
+  if (TEST_MODE) {
+    queries = [{
+      query: `label:${labelName}`,
+    }];
+  }
   const defaultCalendar =
     CalendarApp.getCalendarsByName(defaultCalendarName)[0];
   if (!defaultCalendar) {
@@ -125,11 +130,13 @@ async function processMessage(message, calendar, prefix) {
 
     events.forEach((event) => {
       const { eventName, startTime, endTime, fullDay } = event;
+      const startDate = new Date(startTime);
+      const endDate = new Date(endTime);
       const durationHours =
         (endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60);
       const allDay = durationHours >= 20 || fullDay;
 
-      const duplicateEvent = isDuplicateEvent(startTime, endTime, calendar, prefix, eventName);
+      const duplicateEvent = isDuplicateEvent(startDate, endDate, calendar, prefix, eventName);
 
       if (duplicateEvent) {
         Logger.log(`Duplicate event found: ${prefix}${eventName}`);
