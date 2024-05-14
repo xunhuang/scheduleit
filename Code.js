@@ -4,6 +4,7 @@ const labelNameError = "ScheduleIt_error"; // Variable for the label name
 const defaultCalendarName = "ScheduleIt"; // Replace this with the name of your calendar
 const scriptProperties = PropertiesService.getScriptProperties();
 const openaiApiKey = scriptProperties.getProperty("OPENAI_KEY");
+
 const TEST_MODE = false;
 const SKIP_TAG_DONE_LABEL = false;
 
@@ -44,8 +45,6 @@ function createCalendarEventFromEmail() {
     },
     {
       query: `label:${labelName} -label:${labelNameDone}`,
-      prefix: "[Manual] ",
-      calendar: "Catch-all",
     },
   ];
   const defaultCalendar =
@@ -109,38 +108,28 @@ function createCalendarEventFromEmail() {
 
 async function processMessage(message, calendar, prefix) {
   Logger.log(message.getSubject());
-  const subject = message.getSubject();
   const content = message.getPlainBody();
+  const timedate = message.getDate();
   const emailUrl = `https://mail.google.com/mail/u/0/#inbox/${message.getId()}`;
 
   try {
-    const events = await extractEventsUsingChatGPT(content, emailUrl);
+    const events = await extractEventsUsingChatGPT(
+      `Message recieved on date: ${timedate} \n` +
+      content
+      , emailUrl);
+
+    if (events.length === 0 || !events) {
+      Logger.log("No events extracted. Exiting for: " + message.getSubject());
+      return;
+    }
 
     events.forEach((event) => {
-      const { eventName, startTime, endTime } = event;
-      const startDate = new Date(startTime);
-      const endDate = new Date(endTime);
-
-      // Check if the event is an all-day event
+      const { eventName, startTime, endTime, fullDay } = event;
       const durationHours =
         (endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60);
-      const allDay = durationHours >= 20;
+      const allDay = durationHours >= 20 || fullDay;
 
-      // Check for duplicate events
-      const existingEvents = calendar.getEvents(startDate, endDate);
-
-      Logger.log("checking for dup: " + prefix + eventName);
-      const duplicateEvent = existingEvents.find((existingEvent) => {
-        Logger.log(existingEvent.getTitle());
-        const similarity = jaroWinkler(
-          existingEvent.getTitle(),
-          prefix + eventName
-        );
-        return (
-          similarity > 0.8 && // Adjust this threshold as needed
-          existingEvent.getStartTime().getTime() === startDate.getTime()
-        );
-      });
+      const duplicateEvent = isDuplicateEvent(startTime, endTime, calendar, prefix, eventName);
 
       if (duplicateEvent) {
         Logger.log(`Duplicate event found: ${prefix}${eventName}`);
@@ -176,6 +165,23 @@ async function processMessage(message, calendar, prefix) {
   }
 }
 
+function isDuplicateEvent(startDate, endDate, calendar, prefix, eventName) {
+
+  const existingEvents = calendar.getEvents(startDate, endDate);
+  Logger.log("Checking for dup: " + prefix + eventName);
+  return existingEvents.find((existingEvent) => {
+    Logger.log(existingEvent.getTitle());
+    const similarity = jaroWinkler(
+      existingEvent.getTitle(),
+      prefix + eventName
+    );
+    return (
+      similarity > 0.8 && // Adjust this threshold as needed
+      existingEvent.getStartTime().getTime() === startDate.getTime()
+    );
+  });
+}
+
 function applyLabelToMessage(message, label) {
   const doneLabel =
     GmailApp.getUserLabelByName(label) || GmailApp.createLabel(label);
@@ -195,12 +201,18 @@ async function extractEventsUsingChatGPT(content, messageURL) {
   // Remove URLs from the content
   const contentWithoutUrls = content.replace(/(https?:\/\/[^\s]+)/g, "");
   Logger.log(contentWithoutUrls);
+  const currentYear = new Date().getFullYear();
+
   const systemMessage = `
 Please extract any calendar events including date, time, and event name from the following email 
 and return the full set of data as a json array without duplicates, and do not truncate. 
-If a year is not given, use the current year(2024), use ISO 8601 time format for start time assuming as default timezone. 
+Use startTime, endTime, eventName, fullDay as required fields name for the JSON.
+
+If a year is not given, deduce the event year based on the date email was recieved,
+and if that's not obvious, use the current year(${currentYear}). 
+Use ISO 8601 time format for start time assuming PST as default timezone. 
 If no time is given, assume it is a full day event. 
-Use startTime, endTime, eventName as fields name for the JSON.
+fullDay should be a boolean value.
 
 If no events are found, return an empty JSON array.
 `;
