@@ -29,7 +29,7 @@ function createCalendarEventFromEmail() {
       calendar: "Scouting",
     },
     {
-      query: `{from:headroyce.org} after:${lookbackPeriod} -label:${labelNameDone}`,
+      query: `{from:headroyce.org, from:ljackson@alumni.princeton.edu} after:${lookbackPeriod} -label:${labelNameDone}`,
       prefix: "[HRS]",
       calendar: "Head Royce School",
     },
@@ -37,6 +37,11 @@ function createCalendarEventFromEmail() {
       query: `"Encinal Jr-Sr High School" after:${lookbackPeriod} -label:${labelNameDone}`,
       prefix: "[Encinal]",
       calendar: "Encinal",
+    },
+    {
+      query: `"The Berkeley Chess School" after:${lookbackPeriod} -label:${labelNameDone}`,
+      prefix: "[chess]",
+      calendar: "chess",
     },
     {
       query: `Subject:BMC after:${lookbackPeriod} -label:${labelNameDone}`,
@@ -125,45 +130,46 @@ async function processMessage(message, calendar, prefix) {
 
     if (events.length === 0 || !events) {
       Logger.log("No events extracted. Exiting for: " + message.getSubject());
-      return;
-    }
+    } else {
 
-    events.forEach((event) => {
-      const { eventName, startTime, endTime, fullDay } = event;
-      const startDate = new Date(startTime);
-      const endDate = new Date(endTime);
-      const durationHours =
-        (endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60);
-      const allDay = durationHours >= 20 || fullDay;
+      events.forEach((event) => {
+        const { eventName, startTime, endTime, fullDay } = event;
+        const startDate = new Date(startTime);
+        const endDate = new Date(endTime);
+        const durationHours =
+          (endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60);
+        const allDay = durationHours >= 20 || fullDay;
 
-      const duplicateEvent = isDuplicateEvent(startDate, endDate, calendar, prefix, eventName);
+        const duplicateEvent = isDuplicateEvent(startDate, endDate, calendar, prefix, eventName);
 
-      if (duplicateEvent) {
-        Logger.log(`Duplicate event found: ${prefix}${eventName}`);
-        return; // Skip this iteration
-      }
-      if (!TEST_MODE) {
-        if (allDay) {
-          // Create all-day event
-          calendar.createAllDayEvent(prefix + eventName, startDate, {
-            description: `Extracted from email: ${emailUrl} \n ${content}`,
-          });
-        } else {
-          // Create event with specific start and end times
-          calendar.createEvent(prefix + eventName, startDate, endDate, {
-            description: `Extracted from email: ${emailUrl} \n ${content}`,
-          });
+        if (duplicateEvent) {
+          Logger.log(`Duplicate event found: ${prefix}${eventName}`);
+          return; // Skip this iteration
         }
-      }
-      Logger.log(
-        `Calendar event created: ${prefix}${eventName} from ${startTime} to ${endTime}`
-      );
-    });
+        if (!TEST_MODE) {
+          if (allDay) {
+            // Create all-day event
+            calendar.createAllDayEvent(prefix + eventName, startDate, {
+              description: `Extracted from email: ${emailUrl} \n ${content}`,
+            });
+          } else {
+            // Create event with specific start and end times
+            calendar.createEvent(prefix + eventName, startDate, endDate, {
+              description: `Extracted from email: ${emailUrl} \n ${content}`,
+            });
+          }
+        }
+        Logger.log(
+          `Calendar event created: ${prefix}${eventName} from ${startTime} to ${endTime}`
+        );
+      });
+    }
   } catch (e) {
     Logger.log("Error processing message: " + e);
     Logger.log("Errant message url: " + messageURL);
     applyLabelToMessage(message, labelNameError);
     removeLabelToMessage(message, labelNameDone);
+    return;
   }
 
   if (!SKIP_TAG_DONE_LABEL) {
@@ -222,6 +228,8 @@ If no time is given, assume it is a full day event.
 fullDay should be a boolean value.
 
 If no events are found, return an empty JSON array.
+
+please return pure json string without any formatting or tags
 `;
   const response = UrlFetchApp.fetch(
     "https://api.openai.com/v1/chat/completions",
@@ -232,7 +240,8 @@ If no events are found, return an empty JSON array.
         "Content-Type": "application/json",
       },
       payload: JSON.stringify({
-        model: "gpt-4",
+        // model: "gpt-4",
+        model: "gpt-4o",
         messages: [
           {
             role: "system",
@@ -245,6 +254,7 @@ If no events are found, return an empty JSON array.
   );
 
   const text = response.getContentText();
+  Logger.log(text);
   const data = JSON.parse(text);
   const events = parseEventsFromResponse(data.choices[0].message.content);
   return events;
