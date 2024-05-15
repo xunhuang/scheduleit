@@ -24,7 +24,7 @@ function createCalendarEventFromEmail() {
   Logger.log("Reading Messages Since " + lookbackPeriod);
   var queries = [
     {
-      query: `{from:scouting.org from:mailsrv@troopkit.com list:alamedatroop7@googlegroups.com list:alamedatroop2@googlegroups.com} after:${lookbackPeriod} -label:${labelNameDone}`,
+      query: `{from:jaszha2020@gmail.com from:scouting.org from:mailsrv@troopkit.com list:alamedatroop7@googlegroups.com list:alamedatroop2@googlegroups.com} after:${lookbackPeriod} -label:${labelNameDone}`,
       prefix: "[BSA]",
       calendar: "Scouting",
     },
