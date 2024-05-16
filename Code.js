@@ -79,7 +79,7 @@ function createCalendarEventFromEmail() {
   queries.forEach((queryObject) => {
     var query = queryObject.query;
     if (!TEST_MODE) {
-      query = query + " after:${lookbackPeriod} -label:${labelNameDone}";
+      query = query + ` after:${lookbackPeriod} -label:${labelNameDone}`;
     }
     Logger.log("Searching for: " + query);
 
