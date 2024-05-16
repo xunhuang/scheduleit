@@ -185,7 +185,7 @@ async function processMessage(message, calendar, prefix) {
     }
   } catch (e) {
     Logger.log("Error processing message: " + e);
-    Logger.log("Errant message url: " + messageURL);
+    Logger.log("Errant message url: " + emailUrl);
     applyLabelToMessage(message, labelNameError);
     removeLabelToMessage(message, labelNameDone);
     return;
