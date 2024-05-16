@@ -1,7 +1,10 @@
-const labelName = "ScheduleIt"; // Variable for the label name
-const labelNameDone = "ScheduleIt_done"; // Variable for the label name
-const labelNameError = "ScheduleIt_error"; // Variable for the label name
-const defaultCalendarName = "ScheduleIt"; // Replace this with the name of your calendar
+const labelName = "ScheduleIt";
+const labelNameDone = "ScheduleIt_done";
+const labelNameError = "ScheduleIt_error";
+const labelNameNoEvent = "ScheduleIt_no_event";
+const labelNameEventFound = "ScheduleIt_events_found";
+const defaultCalendarName = "ScheduleIt";
+
 const scriptProperties = PropertiesService.getScriptProperties();
 const openaiApiKey = scriptProperties.getProperty("OPENAI_KEY");
 
@@ -138,7 +141,9 @@ async function processMessage(message, calendar, prefix) {
 
     if (events.length === 0 || !events) {
       Logger.log("No events extracted. Exiting for: " + message.getSubject());
+      applyLabelToMessage(message, labelNameNoEvent);
     } else {
+      applyLabelToMessage(message, labelNameEventFound);
       events.forEach((event) => {
         const { eventName, startTime, endTime, fullDay } = event;
         const startDate = new Date(startTime);
