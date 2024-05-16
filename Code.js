@@ -1,12 +1,45 @@
-const labelName = "ScheduleIt";
+const scriptProperties = PropertiesService.getScriptProperties();
+const openaiApiKey = scriptProperties.getProperty("OPENAI_KEY");
+const DaysToLookBack = 35;
+
+const labelName = "ScheduleIt"; // manually set the label name to run schedule on a single message
 const labelNameDone = "ScheduleIt_done";
+
+const UserRules = [
+  {
+    query: `{from:jaszha2020@gmail.com from:scouting.org from:mailsrv@troopkit.com list:alamedatroop7@googlegroups.com list:alamedatroop2@googlegroups.com}`,
+    prefix: "[BSA]",
+    calendar: "Scouting",
+  },
+  {
+    query: `{from:headroyce.org, from:ljackson@alumni.princeton.edu} `,
+    prefix: "[HRS]",
+    calendar: "Head Royce School",
+  },
+  {
+    query: `"Encinal Jr-Sr High School" `,
+    prefix: "[Encinal]",
+    calendar: "Encinal",
+  },
+  {
+    query: `"The Berkeley Chess School" `,
+    prefix: "[chess]",
+    calendar: "chess",
+  },
+  {
+    query: `Subject:BMC `,
+    prefix: "[BMC]",
+    calendar: "BMC",
+  },
+  {
+    query: `label:${labelName} -label:${labelNameDone}`,
+  },
+];
+
 const labelNameError = "ScheduleIt_error";
 const labelNameNoEvent = "ScheduleIt_no_event";
 const labelNameEventFound = "ScheduleIt_events_found";
 const defaultCalendarName = "ScheduleIt";
-
-const scriptProperties = PropertiesService.getScriptProperties();
-const openaiApiKey = scriptProperties.getProperty("OPENAI_KEY");
 
 const TEST_MODE = false;
 const SKIP_TAG_DONE_LABEL = false;
@@ -22,46 +55,16 @@ function getDateDaysAgo(days) {
 }
 
 function createCalendarEventFromEmail() {
-  const lookbackPeriod = getDateDaysAgo(35);
+  const lookbackPeriod = getDateDaysAgo(DaysToLookBack);
 
   Logger.log("Reading Messages Since " + lookbackPeriod);
-  var queries = [
-    {
-      query: `{from:jaszha2020@gmail.com from:scouting.org from:mailsrv@troopkit.com list:alamedatroop7@googlegroups.com list:alamedatroop2@googlegroups.com}`,
-      prefix: "[BSA]",
-      calendar: "Scouting",
-    },
-    {
-      query: `{from:headroyce.org, from:ljackson@alumni.princeton.edu} `,
-      prefix: "[HRS]",
-      calendar: "Head Royce School",
-    },
-    {
-      query: `"Encinal Jr-Sr High School" `,
-      prefix: "[Encinal]",
-      calendar: "Encinal",
-    },
-    {
-      query: `"The Berkeley Chess School" `,
-      prefix: "[chess]",
-      calendar: "chess",
-    },
-    {
-      query: `Subject:BMC `,
-      prefix: "[BMC]",
-      calendar: "BMC",
-    },
-    {
-      query: `label:${labelName} -label:${labelNameDone}`,
-    },
-  ];
-  if (TEST_MODE) {
-    queries = [
-      {
-        query: `label:${labelName}`,
-      },
-    ];
-  }
+  var queries = !TEST_MODE
+    ? UserRules
+    : [
+        {
+          query: `label:${labelName}`,
+        },
+      ];
   const defaultCalendar =
     CalendarApp.getCalendarsByName(defaultCalendarName)[0];
   if (!defaultCalendar) {
