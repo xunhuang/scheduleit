@@ -150,7 +150,12 @@ async function processMessage(message, calendar, prefix) {
       events.forEach((event) => {
         const { eventName, startTime, endTime, fullDay } = event;
         const startDate = new Date(startTime);
-        const endDate = new Date(endTime);
+        let endDate;
+        if (endTime) {
+          endDate = new Date(endTime);
+        } else {
+          endDate = new Date(startDate.getTime() + 60 * 60 * 1000); // Add 1 hour if endTime is null
+        }
         const durationHours =
           (endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60);
         const allDay = durationHours >= 20 || fullDay;
