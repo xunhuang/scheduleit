@@ -24,27 +24,27 @@ function createCalendarEventFromEmail() {
   Logger.log("Reading Messages Since " + lookbackPeriod);
   var queries = [
     {
-      query: `{from:jaszha2020@gmail.com from:scouting.org from:mailsrv@troopkit.com list:alamedatroop7@googlegroups.com list:alamedatroop2@googlegroups.com} after:${lookbackPeriod} -label:${labelNameDone}`,
+      query: `{from:jaszha2020@gmail.com from:scouting.org from:mailsrv@troopkit.com list:alamedatroop7@googlegroups.com list:alamedatroop2@googlegroups.com}`,
       prefix: "[BSA]",
       calendar: "Scouting",
     },
     {
-      query: `{from:headroyce.org, from:ljackson@alumni.princeton.edu} after:${lookbackPeriod} -label:${labelNameDone}`,
+      query: `{from:headroyce.org, from:ljackson@alumni.princeton.edu} `,
       prefix: "[HRS]",
       calendar: "Head Royce School",
     },
     {
-      query: `"Encinal Jr-Sr High School" after:${lookbackPeriod} -label:${labelNameDone}`,
+      query: `"Encinal Jr-Sr High School" `,
       prefix: "[Encinal]",
       calendar: "Encinal",
     },
     {
-      query: `"The Berkeley Chess School" after:${lookbackPeriod} -label:${labelNameDone}`,
+      query: `"The Berkeley Chess School" `,
       prefix: "[chess]",
       calendar: "chess",
     },
     {
-      query: `Subject:BMC after:${lookbackPeriod} -label:${labelNameDone}`,
+      query: `Subject:BMC `,
       prefix: "[BMC]",
       calendar: "BMC",
     },
@@ -53,9 +53,11 @@ function createCalendarEventFromEmail() {
     },
   ];
   if (TEST_MODE) {
-    queries = [{
-      query: `label:${labelName}`,
-    }];
+    queries = [
+      {
+        query: `label:${labelName}`,
+      },
+    ];
   }
   const defaultCalendar =
     CalendarApp.getCalendarsByName(defaultCalendarName)[0];
@@ -69,7 +71,13 @@ function createCalendarEventFromEmail() {
   const allMessages = [];
 
   queries.forEach((queryObject) => {
-    const threads = GmailApp.search(queryObject.query);
+    var query = queryObject.query;
+    if (!TEST_MODE) {
+      query = query + " after:${lookbackPeriod} -label:${labelNameDone}";
+    }
+    Logger.log("Searching for: " + query);
+
+    const threads = GmailApp.search(query);
     threads.forEach((thread) => {
       const messages = thread.getMessages();
       const message = messages[0];
@@ -98,8 +106,8 @@ function createCalendarEventFromEmail() {
       if (entry.calendar) {
         Logger.log(
           "No calendar found with the name: " +
-          entry.calendar +
-          ". Creating it."
+            entry.calendar +
+            ". Creating it."
         );
         const newCalendar = CalendarApp.createCalendar(entry.calendar);
         processMessage(entry.message, newCalendar, entry.prefix);
@@ -124,14 +132,13 @@ async function processMessage(message, calendar, prefix) {
 
   try {
     const events = await extractEventsUsingChatGPT(
-      `Message recieved on date: ${timedate} \n` +
-      content
-      , emailUrl);
+      `Message recieved on date: ${timedate} \n` + content,
+      emailUrl
+    );
 
     if (events.length === 0 || !events) {
       Logger.log("No events extracted. Exiting for: " + message.getSubject());
     } else {
-
       events.forEach((event) => {
         const { eventName, startTime, endTime, fullDay } = event;
         const startDate = new Date(startTime);
@@ -140,7 +147,13 @@ async function processMessage(message, calendar, prefix) {
           (endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60);
         const allDay = durationHours >= 20 || fullDay;
 
-        const duplicateEvent = isDuplicateEvent(startDate, endDate, calendar, prefix, eventName);
+        const duplicateEvent = isDuplicateEvent(
+          startDate,
+          endDate,
+          calendar,
+          prefix,
+          eventName
+        );
 
         if (duplicateEvent) {
           Logger.log(`Duplicate event found: ${prefix}${eventName}`);
@@ -179,7 +192,6 @@ async function processMessage(message, calendar, prefix) {
 }
 
 function isDuplicateEvent(startDate, endDate, calendar, prefix, eventName) {
-
   const existingEvents = calendar.getEvents(startDate, endDate);
   Logger.log("Checking for dup: " + prefix + eventName);
   return existingEvents.find((existingEvent) => {
