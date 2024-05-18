@@ -12,7 +12,7 @@ const UserRules = [
     calendar: "Scouting",
   },
   {
-    query: `{from:headroyce.org from:ljackson@alumni.princeton.edu from:monicamehta@gmail.com} `,
+    query: `{from:headroyce.org from:support@tads.com from:ljackson@alumni.princeton.edu from:monicamehta@gmail.com} `,
     prefix: "[HRS]",
     calendar: "Head Royce School",
   },
@@ -33,6 +33,10 @@ const UserRules = [
     query: `Subject:BMC `,
     prefix: "[BMC]",
     calendar: "BMC",
+  },
+  {
+    query: "{from:HWVP@standishmanagement.com}",
+    prefix: "[HWVP]",
   },
   {
     query: `label:${labelName} -label:${labelNameDone}`,
