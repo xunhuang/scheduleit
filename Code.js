@@ -94,6 +94,7 @@ function createCalendarEventFromEmail() {
 
   const processedMessageIds = new Set(); // Initialize set for processed message IDs
   allMessages.forEach((entry) => {
+    const prefix = entry.prefix || "";
     if (processedMessageIds.has(entry.message.getId())) {
       Logger.log("Message already processed: " + entry.message.getId());
       return; // Skip processing if message already processed
@@ -113,7 +114,7 @@ function createCalendarEventFromEmail() {
             ". Creating it."
         );
         const newCalendar = CalendarApp.createCalendar(entry.calendar);
-        processMessage(entry.message, newCalendar, entry.prefix);
+        processMessage(entry.message, newCalendar, prefix);
       } else {
         Logger.log(
           "No default calendar found with the name: " + defaultCalendarName
@@ -122,7 +123,7 @@ function createCalendarEventFromEmail() {
       }
     } else {
       Logger.log("Using Calendar with the name: " + calendarToUse.getName());
-      processMessage(entry.message, calendarToUse, entry.prefix);
+      processMessage(entry.message, calendarToUse, prefix);
     }
   });
 }
