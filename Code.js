@@ -202,19 +202,43 @@ async function processMessage(message, calendar, prefix) {
 }
 
 function isDuplicateEvent(startDate, endDate, calendar, prefix, eventName) {
-  const existingEvents = calendar.getEvents(startDate, endDate);
+  const durationHours =
+    (endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60);
+  const allDay = durationHours >= 20;
   Logger.log("Checking for dup: " + prefix + eventName);
-  return existingEvents.find((existingEvent) => {
-    Logger.log(existingEvent.getTitle());
-    const similarity = jaroWinkler(
-      existingEvent.getTitle(),
-      prefix + eventName
-    );
-    return (
-      similarity > 0.8 && // Adjust this threshold as needed
-      existingEvent.getStartTime().getTime() === startDate.getTime()
-    );
-  });
+
+  if (!allDay) {
+    const existingEvents = calendar.getEvents(startDate, endDate);
+    return existingEvents.find((existingEvent) => {
+      Logger.log(existingEvent.getTitle());
+      const similarity = jaroWinkler(
+        existingEvent.getTitle(),
+        prefix + eventName
+      );
+      return (
+        similarity > 0.8 && // Adjust this threshold as needed
+        existingEvent.getStartTime().getTime() === startDate.getTime()
+      );
+    });
+  }
+
+  const startOfDay = new Date(startDate);
+  startOfDay.setHours(0, 0, 0, 0);
+  const endOfDay = new Date(startDate);
+  endOfDay.setHours(23, 59, 59, 999);
+
+  const allEvents = calendar
+    .getEvents(startDate, endDate)
+    .filter((event) => event.isAllDayEvent());
+
+  for (const event of allEvents) {
+    const similarity = jaroWinkler(event.getTitle(), prefix + eventName);
+    if (similarity > 0.8) {
+      Logger.log(`Duplicate event found: ${prefix}${eventName}`);
+      return true;
+    }
+  }
+  return false;
 }
 
 function applyLabelToMessage(message, label) {
