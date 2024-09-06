@@ -68,7 +68,6 @@ function createCalendarEventFromEmail() {
     Logger.log(
       "No default calendar found with the name: " + defaultCalendarName
     );
-    return;
   }
 
   const allMessages = [];
@@ -132,6 +131,12 @@ async function processMessage(message, calendar, prefix) {
   Logger.log(message.getSubject());
   const content = message.getPlainBody();
   const timedate = message.getDate();
+  // this u/0 in the URLis the gmail account list id. This can be different depending on
+  // how many gmail accounts a user decides to add to same browser session profile
+  // we can't directly determine this from the backend.
+  // Maybe this can be a setting in the future.
+  // in addition, this list is best open in a full web gmail account instead of
+  // using the gmail app on a phone as the deeplinking on a phone may not work.
   const emailUrl = `https://mail.google.com/mail/u/0/#inbox/${message.getId()}`;
 
   try {
