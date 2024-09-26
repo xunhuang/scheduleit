@@ -1,6 +1,7 @@
 # scheduleit
 
 This project is a Google Apps Script that will allow you to create calendar events from emails.
+### hello 
 
 - It creates calendar if one doesn't exist
 - It creates calendar events from email content. It uses OpenAI's API to extract the events
